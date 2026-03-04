@@ -32,15 +32,12 @@ void mouseClick(Display *display, int button)
 
 int main(int argc, char **argv)
 {
-	if (argc != 4)
+	if (argc != 2)
 	{
-		fprintf(stderr, "Usage: %s <x_coordinate> <y_coordinate> <click_delay>\n", argv[0]);
+		fprintf(stderr, "Usage: %s <click_delay-msecs>\n", argv[0]);
 		return 1;
 	}
-
-	int x = atoi(argv[1]);
-	int y = atoi(argv[2]);
-	int delay = atoi(argv[3]);
+	int delay = atoi(argv[1]);
 
 	Display *display = XOpenDisplay(NULL);
 	if (display == NULL)
@@ -69,6 +66,11 @@ int main(int argc, char **argv)
 
 	bool autoclickerOn = false;
 
+	Window root = RootWindow(display, DefaultScreen(display));
+	Window root_ret, child_ret;
+	int root_x, root_y, win_x, win_y;
+	unsigned int mask;
+
 	while (1)
 	{
 		ssize_t bytes_read = read(keyboard, &ev, sizeof(ev));
@@ -94,12 +96,15 @@ int main(int argc, char **argv)
 		}
 		refresh();
 
+		if (!autoclickerOn && !XQueryPointer(display, root, &root_ret, &child_ret, &root_x, &root_y, &win_x, &win_y, &mask))
+			printw("[ERROR] Could not get current mouse location!\n");
+
 		if (autoclickerOn)
 		{
-			XTestFakeMotionEvent(display, 0, x, y, 0);
+			XTestFakeMotionEvent(display, 0, root_x, root_y, 0);
 			XFlush(display);
 			mouseClick(display, Button1);
-			usleep(delay);
+			usleep(delay * 1000);
 		}
 	}
 
