@@ -1,35 +1,56 @@
 #include <stdio.h>
+#include <fcntl.h>
+#include <linux/input.h>
+#include <unistd.h>
+#include <signal.h>
+#include <stdlib.h>
 #include <ncurses.h>
 #include <stdbool.h>
 
-int main(void)
+void INThandler()
+{
+	exit(0);
+}
+
+int main()
 {
 	initscr();
 	cbreak();
 	noecho();
-	timeout(0);
+
+	char devname[] = "/dev/input/event3"; // keyboard
+	int device = open(devname, O_RDONLY);
+	struct input_event ev;
+
+	signal(SIGINT, INThandler);
 
 	bool autoclickerOn = false;
 
-	int c;
-	printw("Press 's' to start autoclicker, press 'p' to pause autoclicker, press 'q' to exit.\n");
-
-	while ((c = getch()) != 'q')
+	while (1)
 	{
-		if (c != ERR)
+		ssize_t bytes_read = read(device, &ev, sizeof(ev));
+		if (bytes_read != sizeof(ev))
 		{
-			if (c == 's' && !autoclickerOn)
+			perror("read");
+			return 1;
+		}
+
+		if (ev.type == 1 && ev.value == 1)
+		{
+			if (ev.code == 31 && !autoclickerOn) // S = start
 			{
 				autoclickerOn = true;
-				printw("Autoclicker started!\n");
+				printw("Autoclicker on!\n");
 			}
-			if (c == 'p' && autoclickerOn)
+			if (ev.code == 25 && autoclickerOn) // P = pause
 			{
 				autoclickerOn = false;
-				printw("Autoclicker paused!\n");
+				printw("Autoclicker off!\n");
 			}
-			refresh();
+			if (ev.code == 16) // Q = quit
+				return 0;
 		}
+		refresh();
 	}
 
 	endwin();
