@@ -1,7 +1,7 @@
 # Compiler and flags
 CC := gcc
 CFLAGS := -Wall -Wextra -Iinclude
-LDFLAGS := -lncurses
+LDFLAGS := -lncurses -lX11 -lXtst
 DEBUGFLAGS := -g
 RELEASEFLAGS := -O2
 

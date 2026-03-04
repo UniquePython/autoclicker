@@ -6,20 +6,63 @@
 #include <stdlib.h>
 #include <ncurses.h>
 #include <stdbool.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/XTest.h>
+#include <string.h>
+#include <errno.h>
 
-void INThandler()
+void INThandler(int signum)
 {
+	endwin();
 	exit(0);
 }
 
-int main()
+void mouseClick(Display *display, int button)
 {
+	// Press the button
+	XTestFakeButtonEvent(display, button, True, 0);
+	XFlush(display);
+	usleep(100000);
+
+	// Release the button
+	XTestFakeButtonEvent(display, button, False, 0);
+	XFlush(display);
+}
+
+int main(int argc, char **argv)
+{
+	if (argc != 4)
+	{
+		fprintf(stderr, "Usage: %s <x_coordinate> <y_coordinate> <click_delay>\n", argv[0]);
+		return 1;
+	}
+
+	int x = atoi(argv[1]);
+	int y = atoi(argv[2]);
+	int delay = atoi(argv[3]);
+
+	Display *display = XOpenDisplay(NULL);
+	if (display == NULL)
+	{
+		fprintf(stderr, "Cannot initialize the display\n");
+		return 1;
+	}
+
 	initscr();
 	cbreak();
 	noecho();
 
-	char devname[] = "/dev/input/event3"; // keyboard
-	int device = open(devname, O_RDONLY);
+	char dev_keyboard[] = "/dev/input/event3";
+	int keyboard = open(dev_keyboard, O_RDONLY | O_NONBLOCK);
+	if (keyboard < 0)
+	{
+		perror("Failed to open keyboard");
+		XCloseDisplay(display);
+		endwin();
+		return 1;
+	}
+
 	struct input_event ev;
 
 	signal(SIGINT, INThandler);
@@ -28,14 +71,9 @@ int main()
 
 	while (1)
 	{
-		ssize_t bytes_read = read(device, &ev, sizeof(ev));
-		if (bytes_read != sizeof(ev))
-		{
-			perror("read");
-			return 1;
-		}
+		ssize_t bytes_read = read(keyboard, &ev, sizeof(ev));
 
-		if (ev.type == 1 && ev.value == 1)
+		if (bytes_read > 0 && ev.type == 1 && ev.value == 1)
 		{
 			if (ev.code == 31 && !autoclickerOn) // S = start
 			{
@@ -48,11 +86,24 @@ int main()
 				printw("Autoclicker off!\n");
 			}
 			if (ev.code == 16) // Q = quit
+			{
+				XCloseDisplay(display);
+				endwin();
 				return 0;
+			}
 		}
 		refresh();
+
+		if (autoclickerOn)
+		{
+			XTestFakeMotionEvent(display, 0, x, y, 0);
+			XFlush(display);
+			mouseClick(display, Button1);
+			usleep(delay);
+		}
 	}
 
+	XCloseDisplay(display);
 	endwin();
 
 	return 0;
